@@ -9,6 +9,8 @@ pkgs.mkShellNoCC {
       numpy
       matplotlib
       pytest
+      scipy
+      qpsolvers
     ]))
   ];
 }
