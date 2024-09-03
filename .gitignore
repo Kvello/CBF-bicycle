@@ -5,6 +5,7 @@ __pycache__/
 .vscode
 # For nix integration
 .envrc
+/.direnv
 # C extensions
 *.so
 
