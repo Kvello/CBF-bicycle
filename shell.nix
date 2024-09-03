@@ -11,6 +11,7 @@ pkgs.mkShellNoCC {
       pytest
       scipy
       qpsolvers
+      clarabel
     ]))
   ];
 }
