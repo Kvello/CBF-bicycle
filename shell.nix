@@ -1,7 +1,7 @@
 { pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/tarball/nixos-24.05") {} }:
 
 let
-  python = pkgs.python312;
+  python = pkgs.python311;
 in
 pkgs.mkShellNoCC {
   packages = with pkgs; [
