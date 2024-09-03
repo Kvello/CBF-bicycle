@@ -8,6 +8,7 @@ pkgs.mkShellNoCC {
     (python.withPackages (ps: with ps; [
       numpy
       matplotlib
+      pytest
     ]))
   ];
 }
