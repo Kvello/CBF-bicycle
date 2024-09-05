@@ -14,10 +14,8 @@ def bicycle(t,x:np.ndarray, u:np.ndarray) -> np.ndarray:
     pos_y = x[1]
     v = x[2] # velocity
     theta = x[3] # heading
-    omega = x[4] # angular velocity
     x_dot = x[2]*np.cos(x[3])
     y_dot = x[2]*np.sin(x[3])
-    v_dot = u[0] - omega*v
-    theta_dot = x[4]
-    omega_dot = u[1]
-    return x_dot
+    v_dot = u[0]
+    theta_dot = u[1]
+    return np.array([x_dot, y_dot, v_dot, theta_dot])
