@@ -24,7 +24,6 @@ res = solve_ivp(closed_loop,
           t_eval=np.linspace(0, T, int(T/dt)),
           dense_output=True)
 
-print(len(U_a))
 plt.figure()
 plt.suptitle('Simulation')
 plt.subplot(3,2,1)
