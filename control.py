@@ -3,8 +3,7 @@ import numpy as np
 import qpsolvers as qp
 
 def CLF_controller(x:np.ndarray,
-                   v_ref:float,
-                     omega_ref:float)->np.ndarray:
+                   v_ref:float)->np.ndarray:
     """
     Controller that uses a Control Lyapunov Function.
     Args:
@@ -17,20 +16,17 @@ def CLF_controller(x:np.ndarray,
     pos_y = x[1]
     v = x[2] # velocity
     theta = x[3] # heading
-    omega = x[4] # angular velocity
-
-    gamma = 2 # CLF constraint parameter
-    V = 0.5*(v-v_ref)**2 + 0.5*(omega-omega_ref)**2 # Lyapunov function
-    G_clf = np.array([[v-v_ref, omega-omega_ref]]) # Gradient of Lyapunov function
+    gamma = 5 # CLF constraint parameter
+    V = 0.5*(v-v_ref)**2 # Lyapunov function
+    G_clf = np.array([[v-v_ref, 0]]) # Gradient of Lyapunov function
     h_clf = np.array([-gamma*V])
     # QP problem
     P = np.eye(2) # Input cost matrix
-    lb = np.array([0,-np.inf])
-    sol = qp.solve_qp(P, np.zeros(2), G_clf, h_clf,lb=lb,solver="clarabel")
+    sol = qp.solve_qp(P, np.zeros(2), G_clf, h_clf,solver="clarabel")
     if sol is None:
         print("QP solver failed at x: ",x)
         print("Using default control")
-        return [-0.01*(v_ref-v), -0.01*(omega_ref-omega)]
+        return [-0.01*(v_ref-v), 0]
     u = sol
     return u
 
@@ -38,8 +34,7 @@ def CLF_controller(x:np.ndarray,
     
 def ECBF_controller(x:np.ndarray,
                     r_safe:float,
-                    v_ref:float,
-                    omega_ref:float)->np.ndarray:
+                    v_ref:float)->np.ndarray:
     """
     Controller that uses a Exponential Control Barrier Function.
     Args:
@@ -53,8 +48,6 @@ def ECBF_controller(x:np.ndarray,
     pos_y = x[1]
     v = x[2] # velocity
     theta = x[3] # heading
-    omega = x[4] # angular velocity
-
     # Canonical controlable form of the ECBF system    
     F = np.matrix([[0,1],[0,0]])
     G = np.matrix([[0],[1]])
@@ -63,9 +56,8 @@ def ECBF_controller(x:np.ndarray,
         [r_safe - (pos_x**2 + pos_y**2)], # h(x) = r_safe -(x² + y²)
        [-2*v*(np.cos(theta)*pos_x + np.sin(theta)*pos_y)] # h_dot(x)
        ])
-
     # CLF constraint
-    gamma = 10 # CLF constraint parameter
+    gamma = 5 # CLF constraint parameter
     V = 0.5*(v-v_ref)**2 # Lyapunov function
     G_clf = np.array([[v-v_ref, 0, 0, -1]]) # Gradient of Lyapunov function
     h_clf = -gamma*V
@@ -78,11 +70,11 @@ def ECBF_controller(x:np.ndarray,
     K_alpha = np.array([[k1, k2]])
     # print("Closed loop system: ",F-G@K_alpha)
     # print("Closed-loop system eigenvalues: ",np.linalg.eigvals(F-G@K_alpha))
-    A_ecbf = np.array([[2*np.cos(theta)*pos_x + 2*np.sin(theta)*pos_y,
-                        2*v*(np.cos(theta)*pos_y-np.sin(theta)*pos_x + v),
+    A_ecbf = np.array([[-2*np.cos(theta)*pos_x + 2*np.sin(theta)*pos_y,
+                        2*v*(np.sin(theta)*pos_x-np.cos(theta)*pos_y),
                         -1, 
                         0]])
-    b_ecbf = 0
+    b_ecbf = 2*v**2
     G_ecbf = np.array([[0, 0, -1, 0]])
     h_ecbf = (K_alpha@eta_b).item()
 
@@ -91,18 +83,24 @@ def ECBF_controller(x:np.ndarray,
     h = np.array([h_clf,h_ecbf])
     A = A_ecbf
     b = np.array([b_ecbf])
-    p = 1 # relaxation parameter(safety vs convergence)
+    p = 20 # relaxation parameter(safety vs convergence)
     P = np.array([[1, 0,0, 0], [0, 1, 0,0], [0,0,0,0],[0,0,0,p]]) # Input cost matrix
-    lb = np.array([0,-np.inf,-np.inf,-np.inf])
+    omega_ss = v_ref*r_safe
+    q = np.array([0,-omega_ss,0,0])
     # print("P:",P,"\nG:",G,"\nh:",h,"\nA:",A,"\nb:",b)
-    sol = qp.solve_qp(P, np.zeros(4), G, h, A, b,lb,solver="clarabel")
+    # lb = np.array([-10,-np.pi/6,-np.inf,-np.inf])
+    # ub = np.array([10,np.pi/6,np.inf,np.inf])
+    lb = np.array([-np.inf, -np.inf, -np.inf, -np.inf])
+    ub = np.array([np.inf, np.inf, np.inf, np.inf])
+    sol = qp.solve_qp(P, q, G, h, A, b,lb=lb,ub=ub,solver="clarabel")
     # print(sol)
     if sol is None:
         print("QP solver failed at x: ",x)
         print("Using default control")
-        return [-0.01*(v_ref-v), -0.01*(omega_ref-omega)]
+        return [-0.01*(v_ref-v), 0], 0
     u = sol[0:2]
-    return u
+    delta = sol[3]
+    return u, delta
 
 def ECBF_get_poles(x:np.ndarray, r_safe:float)->np.ndarray:
     """
@@ -113,16 +111,12 @@ def ECBF_get_poles(x:np.ndarray, r_safe:float)->np.ndarray:
     pos_y = x[1]
     v = x[2]
     theta = x[3]
-    omega = x[4]
-    delta = 0.01 # minimum pole value
-    p1 = delta + np.max([0,
-                 (2*v*(np.cos(theta)*pos_x + np.sin(theta)*pos_y))/(
-                     r_safe**2 - pos_x**2 - pos_y**2
-                 )])
-    p2 = delta + np.max([0,
-                 (delta + 2*v*omega*(np.cos(theta)*pos_y - np.sin(theta)*pos_x))/
-                 (p1*(r_safe**2 - pos_x**2 - pos_y**2) - \
-                     2*v*(np.cos(theta)*pos_x + np.sin(theta)*pos_y))
-                 ])
-    # print("Desired poles: ",[-p1, -p2])
+    omega = 0
+    delta = 1 # minimum pole value
+    h = r_safe - (pos_x**2 + pos_y**2)
+    h_dot = -2*v*(np.cos(theta)*pos_x + np.sin(theta)*pos_y)
+    h_ddot = -2*v**2
+
+    p1 = np.maximum(0,-h_dot/(h)) + delta
+    p2 = np.maximum(0,-(h_ddot + p1*h_dot)/(h_dot + p1*h)) + delta
     return np.array([-p1, -p2])
