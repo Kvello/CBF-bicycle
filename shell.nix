@@ -12,6 +12,7 @@ pkgs.mkShellNoCC {
       scipy
       qpsolvers
       clarabel
+      pygame
     ]))
   ];
 }
