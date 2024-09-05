@@ -10,10 +10,14 @@ def bicycle(t,x:np.ndarray, u:np.ndarray) -> np.ndarray:
     Returns:
     x_dot: derivative of the state vector
     """
-    x_dot = np.zeros(5)
-    x_dot[0] = x[2]*np.cos(x[3])
-    x_dot[1] = x[2]*np.sin(x[3])
-    x_dot[2] = u[0]
-    x_dot[3] = x[4]
-    x_dot[4] = u[1]
+    pos_x = x[0]
+    pos_y = x[1]
+    v = x[2] # velocity
+    theta = x[3] # heading
+    omega = x[4] # angular velocity
+    x_dot = x[2]*np.cos(x[3])
+    y_dot = x[2]*np.sin(x[3])
+    v_dot = u[0] - omega*v
+    theta_dot = x[4]
+    omega_dot = u[1]
     return x_dot
